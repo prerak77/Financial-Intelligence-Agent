@@ -1,6 +1,10 @@
 # Financial Stock Intelligence Agent
 
-Financial Stock Intelligence Agent is an agent that analyzes a stock watchlist and returns evidence-backed per-ticker signals.
+Financial Stock Intelligence Agent is a single-user investing workspace built on FastAPI + Streamlit.
+It combines:
+- persistent stock picks and transaction tracking
+- AI analysis with evidence-backed per-ticker signals
+- dashboard visuals for portfolio health (instead of raw JSON-only output)
 
 The project is built to be explainable by design:
 - each output includes structured claims
@@ -9,39 +13,46 @@ The project is built to be explainable by design:
 
 ## What It Does
 
-Given a request like:
+Given active picks (for example `AAPL`, `MSFT`, `NVDA`), the system:
+- stores your picks in SQLite (`watching`, `owned`, `sold`)
+- stores notes, entry/target/stop values, and timestamps
+- records buy/sell transaction history
+- runs AI analysis for selected tickers (up to 5 per run with current API contract)
+- stores latest per-ticker analysis snapshots in DB
+- stores latest per-ticker prices in DB cache
+- renders a dashboard with KPIs, portfolio table, detail view, and recent transactions
+
+Sample analysis request:
 
 ```json
 {"watchlist": ["AAPL", "MSFT", "NVDA"]}
 ```
 
-the system:
-- validates and normalizes the tickers
-- gathers context from price, news, and SEC filing tools
-- generates claim-level evidence
-- scores reliability and confidence
-- returns one of these signals per ticker:
+Analysis signal outputs per ticker:
   - `BULLISH`
   - `BEARISH`
   - `MIXED_SIGNAL`
   - `INSUFFICIENT_EVIDENCE`
-- saves a timestamped report to disk
 
 ## Architecture Overview
 
 Core components:
-- `app/api/` FastAPI app and routes (`/health`, `/analyze`)
+- `app/api/` FastAPI app and routes for analysis, picks, transactions, snapshots, prices
 - `app/agents/` orchestration, claim generation, and reliability logic
 - `app/tools/` data connector layer for price, news, and SEC inputs
-- `app/models/` Pydantic schemas for request and response contracts
-- `app/ui/` Streamlit UI client that calls the API
+- `app/models/` Pydantic schemas for API contracts
+- `app/db.py` SQLite initialization and query helpers
+- `app/scheduler.py` APScheduler background price refresh (15 min, market hours)
+- `app/ui/` Streamlit dashboard
 - `app/rag/` scaffold for future ingestion and retrieval pipeline
 - `app/eval/` scaffold for future evaluation checks
 
 Current implementation status:
 - end-to-end vertical slice is working
 - tool connectors are mocked for deterministic local testing
-- RAG and external API integrations are scaffolded for next iterations
+- persistent portfolio state is implemented with SQLite
+- background market-hours price refresh is implemented
+- RAG and external live API integrations are scaffolded for next iterations
 
 ## API Contract
 
@@ -49,6 +60,15 @@ Current implementation status:
 
 - `GET /health` returns service status
 - `POST /analyze` accepts an `AnalyzeRequest` and returns `AnalyzeResponse`
+- `GET /picks` list picks (supports `include_archived`)
+- `POST /picks` create a pick
+- `PUT /picks/{pick_id}` update a pick
+- `POST /picks/{pick_id}/archive` soft-delete (archive) a pick
+- `GET /transactions` list transactions (optional `ticker` filter)
+- `POST /transactions` create a transaction
+- `GET /snapshots/latest` latest per-ticker analysis snapshots from DB
+- `GET /prices/latest` latest per-ticker cached prices from DB
+- `POST /prices/refresh` manual price refresh for active picks
 
 ### Request rules
 
@@ -65,28 +85,78 @@ Current implementation status:
   - `avg_runtime_per_ticker`
   - `failure_recovery_rate`
 
-## Report Output
+## Persistence Model
 
-Each analysis run is persisted under:
+Data is persisted in:
+- SQLite DB at `data/portfolio.db`
+- JSON analysis run artifacts under `reports/YYYY-MM-DD/`
+
+SQLite tables:
+- `stock_picks`
+- `transactions`
+- `analysis_snapshots`
+- `price_cache`
+
+### Report Output
+
+Each analysis run is also written to:
 
 - `reports/YYYY-MM-DD/run-HHMMSS.json`
 - `reports/YYYY-MM-DD/latest.json`
 
 This keeps a history of runs and a stable pointer to the most recent output.
 
+## Streamlit UI Features
+
+- KPI row: total picks, owned picks, average confidence, bullish ratio
+- Portfolio table: ticker, status, signal, confidence, entry/current, P/L %, target gap
+- Pick management:
+  - add pick
+  - edit status/entry/target/stop/notes
+  - archive pick (soft delete)
+- Analysis actions:
+  - run analysis for selected active tickers
+  - view run-level metrics
+- Transactions:
+  - add buy/sell transactions
+  - view recent transactions by ticker
+- Price actions:
+  - manual refresh button
+  - background refresh every 15 minutes during US market hours
+
+## UI Preview
+
+Dashboard overview:
+
+![Dashboard overview](C:/Users/prera/.cursor/projects/c-Users-prera-OneDrive-Desktop-financial-stock-intel-agent/assets/c__Users_prera_AppData_Roaming_Cursor_User_workspaceStorage_ebe67125cb70c5da05a3b5a7e613b9b8_images_image-f8e36fc2-16c0-4cf0-9303-0be3b30a3d6f.png)
+
+Stock detail panel:
+
+![Stock detail panel](C:/Users/prera/.cursor/projects/c-Users-prera-OneDrive-Desktop-financial-stock-intel-agent/assets/c__Users_prera_AppData_Roaming_Cursor_User_workspaceStorage_ebe67125cb70c5da05a3b5a7e613b9b8_images_image-7b064cbf-ab86-407e-960d-af5562d3f9fa.png)
+
 ## Run Locally
 
-1. Create and activate a Python 3.11 virtual environment.
-2. Install dependencies:
+Your current project setup uses a Linux-style virtual environment (`.venv/bin`), so run via WSL:
+
+1. Open terminal and enter WSL:
+   - `wsl`
+2. Go to project:
+   - `cd /mnt/c/Users/prera/OneDrive/Desktop/financial-stock-intel-agent`
+3. Activate venv:
+   - `source .venv/bin/activate`
+4. Install dependencies (if needed):
    - `pip install -r requirements.txt`
-3. Copy `.env.example` to `.env` and add credentials if needed.
-4. Start the API:
+5. Start API:
    - `uvicorn app.api.main:app --reload`
-5. Optional: run the Streamlit UI in another terminal:
+6. In a second terminal, start UI:
+   - `wsl`
+   - `cd /mnt/c/Users/prera/OneDrive/Desktop/financial-stock-intel-agent`
+   - `source .venv/bin/activate`
    - `streamlit run app/ui/streamlit_app.py`
-6. Call the API:
-   - `POST http://localhost:8000/analyze`
-   - body: `{"watchlist":["AAPL","MSFT","NVDA"]}`
+
+Open:
+- API docs: `http://localhost:8000/docs`
+- UI: `http://localhost:8501`
 
 ## Quick Curl Test
 
@@ -103,13 +173,17 @@ curl -X POST "http://localhost:8000/analyze" \
 - Pydantic
 - Uvicorn
 - Streamlit
+- SQLite (built-in `sqlite3`)
+- APScheduler
 - HTTP client integrations via `httpx`/`requests`
-- Planned vector and scheduling support via `chromadb` and `apscheduler`
+- Planned vector support via `chromadb`
 
 ## Roadmap
 
 Planned next steps:
-- replace mocked tools with live market/news/filing APIs
-- implement retry and failure accounting in tool calls
+- replace mocked tools with live market/news/filing providers
+- persist full analysis history (not just latest per ticker snapshot)
+- add richer visual styling (badges/colors/sparklines)
+- improve batch failure/retry visibility in UI
+- add multi-user auth when needed
 - complete RAG ingest and retrieval workflow
-- add richer UI cards for signal, confidence, and evidence
