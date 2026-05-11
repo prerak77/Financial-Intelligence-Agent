@@ -128,11 +128,11 @@ This keeps a history of runs and a stable pointer to the most recent output.
 
 Dashboard overview:
 
-![Dashboard overview](C:/Users/prera/.cursor/projects/c-Users-prera-OneDrive-Desktop-financial-stock-intel-agent/assets/c__Users_prera_AppData_Roaming_Cursor_User_workspaceStorage_ebe67125cb70c5da05a3b5a7e613b9b8_images_image-f8e36fc2-16c0-4cf0-9303-0be3b30a3d6f.png)
+![Dashboard overview](https://github.com/prerak77/Financial-Intelligence-Agent/blob/main/assests/image.png)
 
 Stock detail panel:
 
-![Stock detail panel](C:/Users/prera/.cursor/projects/c-Users-prera-OneDrive-Desktop-financial-stock-intel-agent/assets/c__Users_prera_AppData_Roaming_Cursor_User_workspaceStorage_ebe67125cb70c5da05a3b5a7e613b9b8_images_image-7b064cbf-ab86-407e-960d-af5562d3f9fa.png)
+![Stock detail panel](https://github.com/prerak77/Financial-Intelligence-Agent/blob/main/assests/image2.png)
 
 ## Run Locally
 
